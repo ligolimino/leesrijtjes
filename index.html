@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="nl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Letterlab leesrijtjes</title>
+    <!--
+        Letterlab — leesrijtjes
+        Rijtjes woorden om luidop te lezen. Zelf ingetypt, of vanzelf
+        gemaakt met alleen de letters die de cursisten al kennen.
+        Klassikaal aanwijzen op het bord, of afdrukken als leesblad.
+        De volledige oefening staat in de link.
+        Stappenplan technisch lezen: stap 13 en 16.
+    -->
+    <style>
+        @font-face {
+            font-family: Andika;
+            src: url("assets/fonts/andika-400.woff2") format("woff2");
+            font-weight: 400;
+            font-display: block;
+        }
+        @font-face {
+            font-family: Andika;
+            src: url("assets/fonts/andika-700.woff2") format("woff2");
+            font-weight: 700;
+            font-display: block;
+        }
+
+        :root {
+            --ink: #0b4a5e;
+            --muted: #4f6f78;
+            --teal: #087f8c;
+            --teal-dark: #08646d;
+            --teal-soft: #d9f2f4;
+            --pink: #e7427a;
+            --pink-soft: #fde4ee;
+            --paper: #f7fbfb;
+            --line: #c8dfe1;
+            --good: #16805d;
+            --bad: #c2334d;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            height: 100%;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: Andika, "Segoe UI", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body.embedded { background: transparent; }
+        body.intro-page { height: auto; }
+        button { font: inherit; color: inherit; cursor: pointer; }
+
+        .app { height: 100%; display: flex; flex-direction: column; }
+
+        .stage {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            place-items: center;
+            padding: 12px;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .grid {
+            display: grid;
+            gap: 0.18em 0.5em;
+            line-height: 1.15;
+        }
+        .w {
+            border: 0;
+            background: transparent;
+            padding: 0.04em 0.18em 0.1em;
+            border-radius: 0.14em;
+            color: var(--ink);
+            text-align: left;
+            white-space: nowrap;
+            position: relative;
+        }
+        .w.empty { visibility: hidden; }
+        /* Aanwijzer: het woord dat nu gelezen wordt */
+        .w.on { background: var(--pink-soft); color: var(--pink); }
+        .w.read { color: var(--muted); opacity: 0.55; }
+        /* Lijn tussen twee rijen bij ingetypte rijtjes */
+        .grid .row-line { grid-column: 1 / -1; height: 2px; background: var(--line); margin: 0.05em 0; }
+
+        .bar {
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+        }
+        .ctrl {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 1.5px solid var(--line);
+            background: #fff;
+            display: grid;
+            place-items: center;
+            color: var(--teal-dark);
+            flex: none;
+        }
+        .ctrl svg { width: 24px; height: 24px; }
+        .ctrl:hover { border-color: var(--teal); }
+        .ctrl.main { background: var(--teal); border-color: var(--teal); color: #fff; }
+        .ctrl.main.playing { background: var(--pink); border-color: var(--pink); }
+        .ctrl[hidden] { display: none; }
+        .timer {
+            min-width: 70px;
+            height: 46px;
+            border-radius: 999px;
+            border: 1.5px solid var(--line);
+            background: #fff;
+            color: var(--teal-dark);
+            padding: 0 14px;
+            font-variant-numeric: tabular-nums;
+            font-size: 17px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .timer svg { width: 20px; height: 20px; }
+        .timer.running { background: var(--teal); border-color: var(--teal); color: #fff; }
+        .count { min-width: 54px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+        @media (max-height: 320px) {
+            .ctrl { width: 36px; height: 36px; }
+            .ctrl svg { width: 20px; height: 20px; }
+            .timer { height: 36px; font-size: 14px; }
+            .bar { padding-top: 2px; padding-bottom: 4px; }
+        }
+
+        .message { max-width: 520px; text-align: center; font-size: 20px; line-height: 1.5; padding: 20px; }
+
+        /* Afdrukken: een rustig leesblad op A4 */
+        .print-head { display: none; }
+        @page { size: A4; margin: 16mm; }
+        @media print {
+            html, body { height: auto; background: #fff; }
+            .bar { display: none; }
+            .app, .stage { display: block; height: auto; padding: 0; }
+            .print-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                border-bottom: 2px solid #9cc;
+                margin-bottom: 8mm;
+                padding-bottom: 2mm;
+                font-size: 14pt;
+                color: #333;
+            }
+            .grid { font-size: 34pt !important; gap: 7mm 16mm; color: #000; }
+            .w { color: #000 !important; background: none !important; opacity: 1 !important; padding: 0; }
+            .grid .row-line { background: #ccc; }
+        }
+
+        /* Uitlegpagina */
+        .intro {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+            line-height: 1.5;
+            font-size: 18px;
+        }
+        .intro h1 { color: var(--teal-dark); margin-bottom: 4px; }
+        .intro h2 { color: var(--teal-dark); font-size: 21px; margin-top: 30px; }
+        .intro code { background: var(--teal-soft); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
+        .intro a { color: var(--teal-dark); }
+        .intro table { border-collapse: collapse; width: 100%; font-size: 16px; }
+        .intro td, .intro th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+        .maker {
+            background: #fff;
+            border: 1.5px solid var(--line);
+            border-radius: 16px;
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
+        .maker label { font-weight: 700; display: grid; gap: 4px; }
+        .maker label small { font-weight: 400; color: var(--muted); }
+        .maker input[type=text], .maker input[type=number], .maker select {
+            font: inherit;
+            padding: 8px 10px;
+            border: 1.5px solid var(--line);
+            border-radius: 10px;
+            color: var(--ink);
+            background: #fff;
+        }
+        .maker .check { font-weight: 400; display: flex; gap: 8px; align-items: center; }
+        .maker .inline { display: flex; gap: 16px; flex-wrap: wrap; font-weight: 400; }
+        .maker output { display: block; background: var(--teal-soft); border-radius: 10px; padding: 8px 10px; font-size: 15px; word-break: break-all; }
+        .maker .row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .maker .row button, .maker .row a {
+            border: 0;
+            border-radius: 999px;
+            background: var(--teal);
+            color: #fff;
+            padding: 8px 16px;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .maker [hidden] { display: none; }
+        .tabs { display: flex; gap: 6px; }
+        .tabs button {
+            border: 1.5px solid var(--line);
+            background: #fff;
+            border-radius: 999px;
+            padding: 6px 14px;
+            color: var(--teal-dark);
+        }
+        .tabs button[aria-pressed="true"] { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .found { font-size: 15px; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <div class="app" id="app"></div>
+
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="i-next" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></symbol>
+        <symbol id="i-prev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="M15 5l-7 7 7 7"/></symbol>
+        <symbol id="i-restart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></symbol>
+        <symbol id="i-shuffle" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" d="M3 7h3.5c4 0 6 10 10 10H21M3 17h3.5c1.6 0 2.9-1.6 4-3.6M13.5 9.6C14.6 8 15.6 7 16.5 7H21M18 4l3 3-3 3M18 14l3 3-3 3"/></symbol>
+        <symbol id="i-full" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+        <symbol id="i-speaker" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></symbol>
+        <symbol id="i-print" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M7 9V3.5h10V9M7 17H4.5V10.5A1.5 1.5 0 0 1 6 9h12a1.5 1.5 0 0 1 1.5 1.5V17H17M7 14h10v6.5H7z"/></symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 9v4.5l3 2M10 2.5h4"/></symbol>
+    </svg>
+
+    <script>
+    (() => {
+        "use strict";
+
+        // ============================================================
+        // 1. INSTELLINGEN UIT DE LINK
+        // ============================================================
+        // Zelf ingetypt:
+        //   woorden=raam,maan,vaas|kip,kim,vis    een | begint een nieuwe rij
+        // Vanzelf gemaakt uit de woordenlijst van het klik-klakboekje:
+        //   letters=r,aa,m,s,v,i,k    de letters die de cursisten kennen
+        //   vorm=mkm                  km, mk, mkm, mmkm, mkmm ... (komma's)
+        //   aantal=12                 hoeveel woorden (standaard 12)
+        //   wissel=ja                 telkens één klank anders (raam raak rak)
+        //   nonsens=ja                ook onbestaande woorden (vis, vim, sim)
+        //   uit=sik,mik               deze woorden nooit
+        // Altijd:
+        //   kolommen=3                aantal kolommen (standaard vanzelf)
+        //   luister=ja                luisterknop voor het aangewezen woord
+        //   mix=ja                    ingetypte woorden door elkaar
+        //   titel=Raam                titel op het afgedrukte leesblad
+
+        const params = new URLSearchParams(location.search);
+        const param = (name) => (params.get(name) || "").trim();
+        const isYes = (value) => ["ja", "j", "yes", "1", "true", "waar"].includes(value.toLowerCase());
+        const list = (value) => value.toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+
+        const typedRows = param("woorden")
+            .split("|")
+            .map((row) => row.split(",").map((w) => w.trim()).filter(Boolean))
+            .filter((row) => row.length);
+        const letters = list(param("letters"));
+        const shapes = list(param("vorm") || "mkm").map((shape) => shape.toUpperCase());
+        const amount = Math.max(2, Math.min(60, Number.parseInt(param("aantal"), 10) || 12));
+        const chain = isYes(param("wissel"));
+        const nonsense = isYes(param("nonsens"));
+        const exclude = new Set(list(param("uit")));
+        const columnsWanted = Number.parseInt(param("kolommen"), 10) || 0;
+        const listen = isYes(param("luister"));
+        const mixTyped = isYes(param("mix"));
+        const title = param("titel");
+        const generated = !typedRows.length && letters.length > 0;
+
+        const embedded = window.self !== window.top;
+        if (embedded) document.body.classList.add("embedded");
+
+        const WORD_FOLDERS = ["../assets/audio/woorden/", "../klikklak/assets/audio/woorden/"];
+        const RESERVED_NAMES = ["con", "prn", "aux", "nul"];
+        // De woordenlijst van het klik-klakboekje (door Miet gezuiverd).
+        // Lukt dat niet, dan de kopie in deze repository.
+        const WORDLIST_SOURCES = ["../klikklak/wordlist-v1.js", "wordlist-v1.js"];
+
+        const VOWELS = ["aa", "ee", "oo", "uu", "ie", "oe", "eu", "ui", "ei", "ij",
+            "ou", "au", "a", "e", "i", "o", "u"];
+        const COMPOUNDS = ["sch", "oe", "aa", "ee", "oo", "uu", "ie", "ei", "ij",
+            "ui", "eu", "ou", "au", "ng", "ch"].sort((a, b) => b.length - a.length);
+
+        function tokenize(word) {
+            const letters = word.toLowerCase().replace(/[^a-zà-ÿ]/g, "");
+            const out = [];
+            let i = 0;
+            while (i < letters.length) {
+                const found = COMPOUNDS.find((compound) => letters.startsWith(compound, i));
+                out.push(found || letters[i]);
+                i += (found || letters[i]).length;
+            }
+            return out;
+        }
+        const shapeOf = (parts) => parts.map((p) => (VOWELS.includes(p) ? "K" : "M")).join("");
+
+        const app = document.getElementById("app");
+        const icon = (name) => `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+        function escapeHtml(value) {
+            return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        function shuffled(items) {
+            const copy = items.slice();
+            for (let i = copy.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        // ============================================================
+        // 2. WOORDENLIJST LADEN
+        // ============================================================
+
+        function loadScript(src) {
+            return new Promise((resolve) => {
+                const node = document.createElement("script");
+                node.src = src;
+                node.onload = () => resolve(true);
+                node.onerror = () => resolve(false);
+                document.head.appendChild(node);
+            });
+        }
+        async function loadWordlist() {
+            for (const src of WORDLIST_SOURCES) {
+                if (window.LETTERLAB_WORDLISTS?.v1?.length) break;
+                // eslint-disable-next-line no-await-in-loop
+                await loadScript(src);
+            }
+            return window.LETTERLAB_WORDLISTS?.v1 || [];
+        }
+
+        // ============================================================
+        // 3. WOORDEN ZOEKEN EN RIJTJES MAKEN
+        // ============================================================
+
+        // Alle woorden die passen: alleen gekende letters, juiste vorm.
+        function pool(wordlist) {
+            const known = new Set(letters);
+            const shapeSet = new Set(shapes);
+            const seen = new Set();
+            const out = [];
+            const add = (parts) => {
+                const word = parts.join("");
+                if (seen.has(word) || exclude.has(word)) return;
+                seen.add(word);
+                out.push({ word, parts });
+            };
+            wordlist.forEach((word) => {
+                const parts = tokenize(word);
+                if (parts.join("") !== word) return;
+                if (!parts.every((p) => known.has(p))) return;
+                if (!shapeSet.has(shapeOf(parts))) return;
+                add(parts);
+            });
+            if (nonsense) {
+                const consonants = letters.filter((l) => !VOWELS.includes(l));
+                const vowels = letters.filter((l) => VOWELS.includes(l));
+                shapes.forEach((shape) => {
+                    let combos = [[]];
+                    for (const kind of shape) {
+                        const options = kind === "K" ? vowels : consonants;
+                        const nextCombos = [];
+                        combos.forEach((combo) => options.forEach((option) => nextCombos.push(combo.concat(option))));
+                        combos = nextCombos;
+                        if (combos.length > 4000) break;
+                    }
+                    combos.filter((c) => c.length === shape.length).forEach(add);
+                });
+            }
+            return out;
+        }
+
+        // Verschilt in precies één klank (zelfde lengte).
+        function oneApart(a, b) {
+            if (a.parts.length !== b.parts.length) return false;
+            let diff = 0;
+            for (let i = 0; i < a.parts.length; i += 1) {
+                if (a.parts[i] !== b.parts[i]) diff += 1;
+                if (diff > 1) return false;
+            }
+            return diff === 1;
+        }
+
+        // Wisselrijtje: een wandeling door de woorden, telkens één klank
+        // anders. Probeert een paar keer en houdt de langste.
+        function makeChain(items) {
+            let best = [];
+            for (let attempt = 0; attempt < 40 && best.length < amount; attempt += 1) {
+                const start = items[Math.floor(Math.random() * items.length)];
+                const path = [start];
+                const used = new Set([start.word]);
+                while (path.length < amount) {
+                    const last = path[path.length - 1];
+                    const options = shuffled(items.filter((item) => !used.has(item.word) && oneApart(last, item)));
+                    if (!options.length) break;
+                    // Liefst een woord dat zelf nog verder kan.
+                    options.sort((a, b) => items.filter((x) => !used.has(x.word) && oneApart(b, x)).length
+                        - items.filter((x) => !used.has(x.word) && oneApart(a, x)).length);
+                    path.push(options[0]);
+                    used.add(options[0].word);
+                }
+                if (path.length > best.length) best = path;
+            }
+            return best.map((item) => item.word);
+        }
+
+        function generate(wordlist) {
+            const items = pool(wordlist);
+            if (!items.length) return [];
+            if (chain) return makeChain(items);
+            // Liefst bestaande woorden eerst, aangevuld met nonsens.
+            return shuffled(items).slice(0, amount).map((item) => item.word);
+        }
+
+        // ============================================================
+        // 4. TOESTAND EN TEKENEN
+        // ============================================================
+
+        const state = {
+            words: [],          // alle woorden in leesvolgorde
+            rows: [],           // [[woord, ...], ...]
+            columns: 3,
+            pointer: -1,
+            timerStart: 0,
+            timerRun: false,
+            timerElapsed: 0,
+            tick: null,
+            playing: false,
+        };
+
+        function layout(words) {
+            if (typedRows.length && !mixTyped) {
+                state.rows = typedRows.map((row) => row.slice());
+                state.columns = columnsWanted || Math.max(...state.rows.map((row) => row.length));
+            } else {
+                const n = words.length;
+                state.columns = columnsWanted || Math.max(1, Math.min(5, Math.round(Math.sqrt(n * 1.4))));
+                state.rows = [];
+                for (let i = 0; i < n; i += state.columns) state.rows.push(words.slice(i, i + state.columns));
+            }
+            state.words = state.rows.flat();
+        }
+
+        const measure = document.createElement("canvas").getContext("2d");
+
+        function render() {
+            let index = 0;
+            const separators = typedRows.length && !mixTyped && state.rows.length > 1;
+            const cells = state.rows.map((row, r) => {
+                const filled = row.map((word) => {
+                    const i = index;
+                    index += 1;
+                    const cls = i === state.pointer ? "on" : i < state.pointer ? "read" : "";
+                    return `<button class="w ${cls}" data-i="${i}">${escapeHtml(word)}</button>`;
+                });
+                while (filled.length < state.columns) filled.push(`<span class="w empty">·</span>`);
+                const line = separators && r < state.rows.length - 1 ? `<span class="row-line"></span>` : "";
+                return filled.join("") + line;
+            }).join("");
+
+            const time = formatTime(currentElapsed());
+            app.innerHTML = `
+                <div class="stage">
+                    <div>
+                        <div class="print-head"><span>${escapeHtml(title || "Leesrijtje")}</span><span>${escapeHtml(letters.join(" "))}</span></div>
+                        <div class="grid" id="grid" style="grid-template-columns: repeat(${state.columns}, auto)">${cells}</div>
+                    </div>
+                </div>
+                <div class="bar">
+                    <button class="ctrl" data-action="prev" aria-label="Vorig woord">${icon("prev")}</button>
+                    <span class="count">${state.pointer >= 0 ? `${state.pointer + 1} / ${state.words.length}` : `${state.words.length}`}</span>
+                    <button class="ctrl" data-action="next" aria-label="Volgend woord (spatie)">${icon("next")}</button>
+                    ${listen ? `<button class="ctrl main ${state.playing ? "playing" : ""}" data-action="listen" aria-label="Luister (L)" ${state.pointer >= 0 ? "" : "hidden"}>${icon("speaker")}</button>` : ""}
+                    <button class="timer ${state.timerRun ? "running" : ""}" data-action="timer" aria-label="Stopwatch (T)">${icon("clock")}<span id="time">${time}</span></button>
+                    <button class="ctrl" data-action="reset" aria-label="Opnieuw (R)">${icon("restart")}</button>
+                    ${generated || mixTyped ? `<button class="ctrl" data-action="new" aria-label="Nieuwe woorden (N)">${icon("shuffle")}</button>` : ""}
+                    <button class="ctrl" data-action="print" aria-label="Afdrukken">${icon("print")}</button>
+                    ${document.fullscreenEnabled ? `<button class="ctrl" data-action="fullscreen" aria-label="Volledig scherm">${icon("full")}</button>` : ""}
+                </div>`;
+            fit();
+        }
+
+        function fit() {
+            const stage = document.querySelector(".stage");
+            const grid = document.getElementById("grid");
+            if (!stage || !grid) return;
+            measure.font = "400 100px Andika";
+            const colWidths = [];
+            state.rows.forEach((row) => row.forEach((word, c) => {
+                colWidths[c] = Math.max(colWidths[c] || 0, measure.measureText(word).width + 36);
+            }));
+            const totalWidth = colWidths.reduce((a, b) => a + b, 0) + 50 * (state.columns - 1);
+            const lines = state.rows.length;
+            const totalHeight = lines * 133 + (lines - 1) * 18;
+            const byWidth = ((stage.clientWidth - 30) / totalWidth) * 100;
+            const byHeight = ((stage.clientHeight - 24) / totalHeight) * 100;
+            let size = Math.max(18, Math.min(byWidth, byHeight, 140));
+            grid.style.fontSize = `${size}px`;
+            // Veiligheid: past het toch niet, dan nog wat kleiner.
+            for (let i = 0; i < 12 && size > 18; i += 1) {
+                const box = grid.getBoundingClientRect();
+                if (box.width <= stage.clientWidth - 16 && box.height <= stage.clientHeight - 16) break;
+                size *= 0.94;
+                grid.style.fontSize = `${size}px`;
+            }
+        }
+
+        // ============================================================
+        // 5. STOPWATCH
+        // ============================================================
+
+        function currentElapsed() {
+            return state.timerElapsed + (state.timerRun ? Date.now() - state.timerStart : 0);
+        }
+        function formatTime(ms) {
+            const seconds = Math.floor(ms / 1000);
+            return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+        }
+        function toggleTimer() {
+            if (state.timerRun) {
+                state.timerElapsed = currentElapsed();
+                state.timerRun = false;
+                clearInterval(state.tick);
+            } else {
+                state.timerStart = Date.now();
+                state.timerRun = true;
+                state.tick = setInterval(() => {
+                    const node = document.getElementById("time");
+                    if (node) node.textContent = formatTime(currentElapsed());
+                }, 250);
+            }
+            const button = document.querySelector(".timer");
+            if (button) button.classList.toggle("running", state.timerRun);
+        }
+        function resetTimer() {
+            clearInterval(state.tick);
+            state.timerRun = false;
+            state.timerElapsed = 0;
+        }
+
+        // ============================================================
+        // 6. LUISTEREN
+        // ============================================================
+
+        function wordUrls(word) {
+            const lower = word.toLowerCase();
+            const name = RESERVED_NAMES.includes(lower) ? `${lower}_` : lower;
+            const file = `${encodeURIComponent(name)}.mp3`;
+            return WORD_FOLDERS.flatMap((folder) => [
+                `${folder}${encodeURIComponent(lower.charAt(0))}/${file}`,
+                `${folder}nonsens/${file}`,
+            ]);
+        }
+        function speak(text) {
+            return new Promise((resolve) => {
+                if (!("speechSynthesis" in window)) {
+                    resolve();
+                    return;
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voices = speechSynthesis.getVoices();
+                utterance.voice = voices.find((v) => v.lang === "nl-BE")
+                    || voices.find((v) => v.lang.startsWith("nl")) || null;
+                utterance.lang = utterance.voice ? utterance.voice.lang : "nl-BE";
+                utterance.rate = 0.85;
+                utterance.onend = resolve;
+                utterance.onerror = resolve;
+                setTimeout(resolve, 4000);
+                speechSynthesis.speak(utterance);
+            });
+        }
+        function playWord(word) {
+            return new Promise((resolve) => {
+                const urls = wordUrls(word);
+                let attempt = 0;
+                const tryNext = () => {
+                    if (attempt >= urls.length) {
+                        speak(word).then(resolve);
+                        return;
+                    }
+                    const audio = new Audio(urls[attempt]);
+                    attempt += 1;
+                    audio.addEventListener("ended", resolve, { once: true });
+                    audio.addEventListener("error", tryNext, { once: true });
+                    audio.play().catch(tryNext);
+                };
+                tryNext();
+            });
+        }
+        async function listenNow() {
+            if (state.playing || state.pointer < 0) return;
+            state.playing = true;
+            const button = document.querySelector("[data-action=listen]");
+            if (button) button.classList.add("playing");
+            await playWord(state.words[state.pointer]);
+            state.playing = false;
+            const again = document.querySelector("[data-action=listen]");
+            if (again) again.classList.remove("playing");
+        }
+
+        // ============================================================
+        // 7. BEDIENING
+        // ============================================================
+
+        function point(index) {
+            state.pointer = Math.max(-1, Math.min(state.words.length - 1, index));
+            render();
+        }
+
+        let wordlistCache = [];
+        function refill() {
+            if (generated) {
+                const words = generate(wordlistCache);
+                layout(words);
+            } else {
+                layout(shuffled(typedRows.flat()));
+            }
+            state.pointer = -1;
+            resetTimer();
+            render();
+        }
+
+        function fullscreen() {
+            if (document.fullscreenElement) document.exitFullscreen();
+            else document.documentElement.requestFullscreen().catch(() => {});
+        }
+
+        function bindControls() {
+            app.addEventListener("click", (event) => {
+                const word = event.target.closest("[data-i]");
+                if (word) {
+                    const i = Number(word.dataset.i);
+                    point(i === state.pointer ? -1 : i);
+                    return;
+                }
+                const target = event.target.closest("[data-action]");
+                if (!target) return;
+                const action = target.dataset.action;
+                if (action === "next") point(state.pointer + 1);
+                else if (action === "prev") point(state.pointer - 1);
+                else if (action === "listen") listenNow();
+                else if (action === "timer") toggleTimer();
+                else if (action === "reset") {
+                    resetTimer();
+                    point(-1);
+                } else if (action === "new") refill();
+                else if (action === "print") window.print();
+                else if (action === "fullscreen") fullscreen();
+            });
+            document.addEventListener("keydown", (event) => {
+                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                const key = event.key.toLowerCase();
+                if (key === " " || key === "arrowright" || key === "pagedown") {
+                    event.preventDefault();
+                    point(state.pointer + 1);
+                } else if (key === "arrowleft" || key === "pageup") {
+                    event.preventDefault();
+                    point(state.pointer - 1);
+                } else if (key === "arrowdown") {
+                    event.preventDefault();
+                    point(state.pointer + state.columns);
+                } else if (key === "arrowup") {
+                    event.preventDefault();
+                    point(state.pointer - state.columns);
+                } else if (key === "l" && listen) listenNow();
+                else if (key === "t") toggleTimer();
+                else if (key === "r") {
+                    resetTimer();
+                    point(-1);
+                } else if (key === "n" && (generated || mixTyped)) refill();
+                else if (key === "f") fullscreen();
+            });
+            window.addEventListener("resize", fit);
+            document.addEventListener("fullscreenchange", () => setTimeout(fit, 60));
+        }
+
+        // ============================================================
+        // 8. START
+        // ============================================================
+
+        if (!typedRows.length && !letters.length) {
+            loadWordlist().then(showIntro);
+            return;
+        }
+
+        Promise.all([document.fonts.load("400 100px Andika").catch(() => {}), document.fonts.ready]).then(async () => {
+            if (generated) {
+                wordlistCache = await loadWordlist();
+                const words = generate(wordlistCache);
+                if (!words.length) {
+                    app.innerHTML = `<div class="stage"><div class="message">Met deze letters en deze vorm (${escapeHtml(shapes.join(", ").toLowerCase())})
+                        vind ik geen woorden. Voeg letters toe, kies een andere vorm of zet <b>nonsens=ja</b> in de link.</div></div>`;
+                    return;
+                }
+                layout(words);
+            } else {
+                layout(mixTyped ? shuffled(typedRows.flat()) : typedRows.flat());
+            }
+            bindControls();
+            render();
+        });
+
+        // ============================================================
+        // 9. UITLEG EN LINK MAKEN
+        // ============================================================
+
+        function showIntro() {
+            document.title = "Letterlab leesrijtjes";
+            document.body.classList.add("intro-page");
+            app.innerHTML = `<div class="intro">
+                <h1>Letterlab leesrijtjes</h1>
+                <p>Rijtjes woorden om luidop te lezen: klassikaal op het bord met een aanwijzer, of afgedrukt als leesblad.
+                Je typt de woorden zelf, of de tool zoekt ze met alleen de letters die de cursisten al kennen.</p>
+
+                <h2>Link maken</h2>
+                <div class="maker">
+                    <div class="tabs" role="group">
+                        <button type="button" data-tab="zoek" aria-pressed="true">Woorden zoeken</button>
+                        <button type="button" data-tab="typ" aria-pressed="false">Zelf typen</button>
+                    </div>
+                    <div id="tab-zoek" style="display:grid;gap:12px">
+                        <label>Gekende letters
+                            <small>Met een komma ertussen, bv. r,aa,m,s,v,i,k</small>
+                            <input type="text" id="m-letters" value="r,aa,m,s,v,i,k" autocomplete="off">
+                        </label>
+                        <label>Vorm
+                            <span class="inline" id="m-vorm">
+                                ${["km", "mk", "mkm", "mmkm", "mkmm"].map((v) => `<label class="check"><input type="checkbox" value="${v}" ${v === "mkm" ? "checked" : ""}> ${v}</label>`).join("")}
+                            </span>
+                        </label>
+                        <label>Aantal woorden
+                            <input type="number" id="m-aantal" value="12" min="2" max="60">
+                        </label>
+                        <label class="check"><input type="checkbox" id="m-wissel"> Wisselrijtje: telkens één klank anders (raam, raak, rak ...)</label>
+                        <label class="check"><input type="checkbox" id="m-nonsens"> Ook onbestaande woorden</label>
+                        <label>Woorden uitsluiten (niet verplicht)
+                            <input type="text" id="m-uit" value="" autocomplete="off">
+                        </label>
+                        <div class="found" id="m-found"></div>
+                    </div>
+                    <div id="tab-typ" hidden style="display:grid;gap:12px">
+                        <label>Woorden
+                            <small>Komma's tussen de woorden, een | voor een nieuwe rij: raam,maan,vaas|kip,kim,vis</small>
+                            <input type="text" id="m-woorden" value="" autocomplete="off">
+                        </label>
+                        <label class="check"><input type="checkbox" id="m-mix"> Door elkaar (met knop voor een nieuwe volgorde)</label>
+                    </div>
+                    <label>Kolommen (niet verplicht)
+                        <input type="number" id="m-kolommen" value="" min="1" max="8">
+                    </label>
+                    <label>Titel op het leesblad (niet verplicht)
+                        <input type="text" id="m-titel" value="" autocomplete="off">
+                    </label>
+                    <label class="check"><input type="checkbox" id="m-luister"> Luisterknop voor het aangewezen woord</label>
+                    <output id="m-out"></output>
+                    <div class="row">
+                        <a id="m-open" href="#" target="_blank" rel="noopener">Openen</a>
+                        <button type="button" id="m-copy">Link kopiëren</button>
+                        <button type="button" id="m-embed">Genially-code kopiëren</button>
+                    </div>
+                </div>
+
+                <h2>Bediening</h2>
+                <table>
+                    <tr><th>Knop</th><th>Toets</th><th>Wat</th></tr>
+                    <tr><td>Tik op een woord</td><td>spatie, pijlen</td><td>Aanwijzen. Gelezen woorden worden lichter.</td></tr>
+                    <tr><td>Luidspreker</td><td>L</td><td>Het aangewezen woord beluisteren (met luisterknop).</td></tr>
+                    <tr><td>Klok</td><td>T</td><td>Stopwatch starten en stoppen.</td></tr>
+                    <tr><td>Pijltjes door elkaar</td><td>N</td><td>Nieuwe woorden of een nieuwe volgorde.</td></tr>
+                    <tr><td>Printer</td><td></td><td>Leesblad op A4.</td></tr>
+                </table>
+                <p>Lees in de leesrijtjes alleen klankzuivere woorden. De betekenis is hier niet belangrijk: ook onbestaande woorden mogen.
+                De gevonden woorden komen uit de woordenlijst van het klik-klakboekje. Controleer ze voor je ze gebruikt.</p>
+            </div>`;
+
+            const $ = (id) => document.getElementById(id);
+            const base = location.href.split("?")[0].split("#")[0];
+            let tab = "zoek";
+            const wordlist = window.LETTERLAB_WORDLISTS?.v1 || [];
+
+            app.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => {
+                tab = button.dataset.tab;
+                app.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+                $("tab-zoek").hidden = tab !== "zoek";
+                $("tab-zoek").style.display = tab === "zoek" ? "grid" : "none";
+                $("tab-typ").hidden = tab !== "typ";
+                $("tab-typ").style.display = tab === "typ" ? "grid" : "none";
+                build();
+            }));
+            $("tab-typ").style.display = "none";
+
+            function countFound(letterList, vormen, withNonsense, uit) {
+                const known = new Set(letterList);
+                const set = new Set(vormen.map((v) => v.toUpperCase()));
+                const real = wordlist.filter((word) => {
+                    const parts = tokenize(word);
+                    return parts.join("") === word && parts.every((p) => known.has(p))
+                        && set.has(shapeOf(parts)) && !uit.includes(word);
+                });
+                return { real, withNonsense };
+            }
+
+            function build() {
+                const query = new URLSearchParams();
+                if (tab === "zoek") {
+                    const letterList = list($("m-letters").value);
+                    const vormen = [...$("m-vorm").querySelectorAll("input:checked")].map((i) => i.value);
+                    const uit = list($("m-uit").value);
+                    query.set("letters", letterList.join(","));
+                    query.set("vorm", (vormen.length ? vormen : ["mkm"]).join(","));
+                    query.set("aantal", String($("m-aantal").value || 12));
+                    if ($("m-wissel").checked) query.set("wissel", "ja");
+                    if ($("m-nonsens").checked) query.set("nonsens", "ja");
+                    if (uit.length) query.set("uit", uit.join(","));
+                    const found = countFound(letterList, vormen.length ? vormen : ["mkm"], $("m-nonsens").checked, uit);
+                    $("m-found").textContent = wordlist.length
+                        ? `${found.real.length} bestaande woorden gevonden${found.real.length ? `: ${found.real.slice(0, 40).join(", ")}${found.real.length > 40 ? " ..." : ""}` : ""}`
+                        : "";
+                } else {
+                    query.set("woorden", $("m-woorden").value.replace(/\s*,\s*/g, ",").replace(/\s*\|\s*/g, "|").trim() || "raam,maan,vaas|kip,kim,vis");
+                    if ($("m-mix").checked) query.set("mix", "ja");
+                }
+                if ($("m-kolommen").value) query.set("kolommen", $("m-kolommen").value);
+                if ($("m-titel").value.trim()) query.set("titel", $("m-titel").value.trim());
+                if ($("m-luister").checked) query.set("luister", "ja");
+                const url = `${base}?${query.toString().replace(/%2C/gi, ",").replace(/%7C/gi, "|")}`;
+                $("m-out").textContent = url;
+                $("m-open").href = url;
+                return url;
+            }
+            function copy(text, button) {
+                const done = () => {
+                    const old = button.textContent;
+                    button.textContent = "Gekopieerd";
+                    setTimeout(() => { button.textContent = old; }, 1400);
+                };
+                if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+            }
+            app.addEventListener("input", build);
+            app.addEventListener("change", build);
+            $("m-copy").addEventListener("click", (event) => copy(build(), event.target));
+            $("m-embed").addEventListener("click", (event) => copy(
+                `<iframe src="${build()}" width="100%" height="520" style="border:0;background:transparent" allowtransparency="true" allow="fullscreen" allowfullscreen title="Letterlab leesrijtjes"></iframe>`,
+                event.target));
+            build();
+        }
+    })();
+    </script>
+</body>
+</html>
